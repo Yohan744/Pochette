@@ -4,13 +4,14 @@
   "version": "1.0.0",
   "description": "Tag and cover editor for DJs — WAV, AIFF, MP3, FLAC, built around rekordbox.",
   "author": "Yohan Quinquis",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac dir --publish never && node scripts/sign.js",
+    "dist": "node scripts/build.js",
     "install-app": "npm run dist && node scripts/install.js",
+    "release": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && electron-builder --mac dir --arm64 --x64 --publish never && node scripts/dmg.js",
     "test": "node --test test/core.test.js"
   },
   "devDependencies": {
@@ -37,7 +38,13 @@
     },
     "fileAssociations": [
       {
-        "ext": ["wav", "aiff", "aif", "mp3", "flac"],
+        "ext": [
+          "wav",
+          "aiff",
+          "aif",
+          "mp3",
+          "flac"
+        ],
         "name": "Audio",
         "role": "Viewer",
         "rank": "Alternate"
