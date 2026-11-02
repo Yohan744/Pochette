@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Pochette</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- texts: data-i18n (text), data-i18n-html (HTML), data-i18n-tip (tooltip), data-i18n-ph (placeholder) → src/i18n.js -->
+  <header class="toolbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><span></span></span>
+      <span class="brand-name">Pochette</span>
+    </div>
+
+    <div class="tb-group">
+      <button class="tb-btn" data-cmd="openFiles" data-i18n-tip="tb.files.tip"><svg data-icon="plus"></svg><span class="opt" data-i18n="tb.files"></span></button>
+      <button class="tb-btn" data-cmd="openFolder" data-i18n-tip="tb.folder.tip"><svg data-icon="folder"></svg><span class="opt" data-i18n="tb.folder"></span></button>
+      <button class="tb-btn" data-cmd="clearList" data-i18n-tip="tb.clear.tip" disabled><svg data-icon="listX"></svg><span class="opt" data-i18n="tb.clear"></span></button>
+    </div>
+
+    <div class="tb-group">
+      <button class="tb-btn" data-cmd="titleFromName" data-i18n-tip="tb.titleFromName.tip"><svg data-icon="type"></svg><span data-i18n="tb.titleFromName"></span></button>
+      <button class="tb-btn" data-cmd="copyColumn" data-i18n-tip="tb.copyColumn.tip"><svg data-icon="copy"></svg><span data-i18n="tb.copyColumn"></span></button>
+    </div>
+
+    <div class="tb-group">
+      <button class="tb-btn" data-cmd="pickCover" data-i18n-tip="tb.cover.tip"><svg data-icon="image"></svg><span class="opt" data-i18n="tb.cover"></span></button>
+      <button class="tb-btn" data-cmd="searchCover" data-i18n-tip="tb.search.tip"><svg data-icon="globe"></svg><span class="opt" data-i18n="tb.search"></span></button>
+      <button class="tb-btn" data-cmd="convert" data-i18n-tip="tb.convert.tip"><svg data-icon="disc"></svg><span>→ AIFF</span></button>
+    </div>
+
+    <div class="tb-spacer"></div>
+
+    <button class="tb-icon" data-cmd="settings" data-i18n-tip="tb.settings.tip"><svg data-icon="sliders"></svg></button>
+    <button class="save-btn" data-cmd="save" data-i18n-tip="tb.save.tip" disabled>
+      <svg data-icon="save"></svg><span data-i18n="tb.save"></span><b id="dirty-count"></b>
+    </button>
+  </header>
+  <div class="filterbar">
+    <div class="search">
+      <svg data-icon="search"></svg>
+      <input id="search" type="search" data-i18n-ph="search.ph" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="chips" role="group">
+      <button class="chip" data-filter="noCover"><span data-i18n="chip.noCover"></span> <b data-count="noCover"></b></button>
+      <button class="chip" data-filter="mismatch"><span data-i18n="chip.mismatch"></span> <b data-count="mismatch"></b></button>
+      <button class="chip" data-filter="dirty"><span data-i18n="chip.dirty"></span> <b data-count="dirty"></b></button>
+    </div>
+    <span class="filter-hint" id="filter-hint"></span>
+  </div>
+  <div class="progress" id="progress"><span></span></div>
+
+  <main class="main">
+    <section class="table-wrap" id="table-wrap">
+      <div class="thead" id="thead"></div>
+      <div class="tbody" id="tbody" tabindex="0">
+        <div class="tbody-inner" id="tbody-inner"></div>
+      </div>
+
+      <div class="empty" id="empty">
+        <div class="empty-card">
+          <div class="sleeve" aria-hidden="true"><div class="vinyl"></div><div class="jacket"></div></div>
+          <h1 data-i18n="empty.title"></h1>
+          <p data-i18n="empty.sub"></p>
+          <div class="empty-actions">
+            <button class="btn primary" data-cmd="openFolder"><svg data-icon="folder"></svg><span data-i18n="empty.openFolder"></span></button>
+            <button class="btn" data-cmd="openFiles"><svg data-icon="plus"></svg><span data-i18n="empty.openFiles"></span></button>
+          </div>
+          <ul class="tips">
+            <li data-i18n-html="empty.tip1"></li>
+            <li data-i18n-html="empty.tip2"></li>
+            <li data-i18n-html="empty.tip3"></li>
+          </ul>
+        </div>
+      </div>
+      <div class="no-results" id="no-results" data-i18n="noResults"></div>
+    </section>
+
+    <aside class="inspector" id="inspector"></aside>
+  </main>
+
+  <footer class="statusbar">
+    <span id="status"></span>
+    <span class="status-right" id="status-right"></span>
+  </footer>
+
+  <div class="drop-overlay" id="drop-overlay"><div><svg data-icon="plus"></svg><span data-i18n="drop.add"></span></div></div>
+  <div class="toasts" id="toasts"></div>
+  <div class="modal-root" id="modal-root"></div>
+  <div class="menu-root" id="menu-root"></div>
+
+  <script src="../i18n.js"></script>
+  <script src="icons.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
