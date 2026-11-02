@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, nativeImage, shell, clipboard, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, nativeImage, shell, clipboard, net, protocol } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -10,10 +10,14 @@ const i18n = require('./i18n');
 
 const { t } = i18n;
 const { toAiff } = require('./convert');
+const { previewSource } = require('./core/preview');
 const { composeIcon, SIZE: ICON_SIZE, BOX: ICON_BOX } = require('./core/icon');
 
 const isMac = process.platform === 'darwin';
 let win;
+
+// pochette://audio/?p=<path> streams a track to the preview player (must be declared before app is ready)
+protocol.registerSchemesAsPrivileged([{ scheme: 'pochette', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }]);
 
 // ------------------------------------------------------------------ settings
 
@@ -219,6 +223,13 @@ handle('files:load', async (paths) => {
 
 handle('cover:import', async (source) => normalizeCover(await imageFromSource(source)));
 
+/** Frees the covers nothing refers to any more (not on a track, not in the undo history). */
+handle('cover:keepOnly', (ids) => {
+  const keep = new Set(ids);
+  for (const id of [...coverStore.keys()]) if (!keep.has(id)) coverStore.delete(id);
+  return coverStore.size;
+});
+
 handle('cover:clipboard', () => {
   const img = clipboard.readImage();
   if (img.isEmpty()) throw new Error(t('err.clipboard'));
@@ -320,8 +331,9 @@ function buildMenu() {
     ...(isMac ? [{ label: app.name, submenu: [role('about', 'menu.about'), sep, item('menu.settings', 'settings', 'CmdOrCtrl+,'), sep, role('hide', 'menu.hide'), role('hideOthers', 'menu.hideOthers'), sep, role('quit', 'menu.quit')] }] : []),
     { label: t('menu.file'), submenu: [item('menu.openFiles', 'openFiles', 'CmdOrCtrl+O'), item('menu.openFolder', 'openFolder', 'CmdOrCtrl+Shift+O'), sep, item('menu.save', 'save', 'CmdOrCtrl+S'), item('menu.revert', 'revert'), sep, item('menu.clearList', 'clearList', 'CmdOrCtrl+Shift+K'), item('menu.reveal', 'reveal', 'CmdOrCtrl+Shift+R'), item('menu.removeFromList', 'removeFromList', 'CmdOrCtrl+Backspace', { registerAccelerator: false }), sep, role('close', 'menu.close')] },
     { label: t('menu.edit'), submenu: [item('menu.undo', 'undo', 'CmdOrCtrl+Z'), item('menu.redo', 'redo', 'CmdOrCtrl+Shift+Z'), sep, role('cut', 'menu.cut'), role('copy', 'menu.copy'), role('paste', 'menu.paste'), item('menu.selectAll', 'selectAll', 'CmdOrCtrl+A'), sep, item('menu.find', 'find', 'CmdOrCtrl+F')] },
-    { label: t('menu.tags'), submenu: [item('menu.titleFromName', 'titleFromName', 'CmdOrCtrl+T'), item('menu.nameFromTitle', 'nameFromTitle', 'CmdOrCtrl+Shift+T'), item('menu.copyColumn', 'copyColumn', 'CmdOrCtrl+Shift+C'), sep, item('menu.pickCover', 'pickCover', 'CmdOrCtrl+I'), item('menu.pasteCover', 'pasteCover', 'CmdOrCtrl+Shift+V'), item('menu.searchCover', 'searchCover', 'CmdOrCtrl+Shift+F'), item('menu.removeCover', 'removeCover'), sep, item('menu.convert', 'convert', 'CmdOrCtrl+Shift+A'), item('menu.finderIcons', 'finderIcons')] },
-    { label: t('menu.view'), submenu: [role('reload', 'menu.reload'), role('toggleDevTools', 'menu.devtools'), sep, role('togglefullscreen', 'menu.fullscreen')] },
+    { label: t('menu.tags'), submenu: [item('menu.titleFromName', 'titleFromName', 'CmdOrCtrl+T'), item('menu.clean', 'clean', 'CmdOrCtrl+Shift+L'), item('menu.nameFromTitle', 'nameFromTitle', 'CmdOrCtrl+Shift+T'), item('menu.copyColumn', 'copyColumn', 'CmdOrCtrl+Shift+C'), sep, item('menu.pickCover', 'pickCover', 'CmdOrCtrl+I'), item('menu.pasteCover', 'pasteCover', 'CmdOrCtrl+Shift+V'), item('menu.searchCover', 'searchCover', 'CmdOrCtrl+Shift+F'), item('menu.removeCover', 'removeCover'), sep, item('menu.convert', 'convert', 'CmdOrCtrl+Shift+A'), item('menu.finderIcons', 'finderIcons')] },
+    // Reload / DevTools only while developing: a reload would silently drop unsaved edits
+    { label: t('menu.view'), submenu: [...(app.isPackaged ? [] : [role('reload', 'menu.reload'), role('toggleDevTools', 'menu.devtools'), sep]), role('togglefullscreen', 'menu.fullscreen')] },
     { role: 'windowMenu', label: t('menu.window') },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -369,7 +381,42 @@ app.on('open-file', (e, p) => {
   if (win) win.webContents.send('open-paths', [p]); else pendingOpen.push(p);
 });
 
+// ------------------------------------------------------------------ preview player stream (byte ranges, so seeking works)
+
+const AUDIO_EXT = new Set(['.wav', '.wave', '.aif', '.aiff', '.aifc', '.mp3', '.flac']);
+const CHUNK = 256 * 1024;
+
+function handleAudio(request) {
+  const url = new URL(request.url);
+  const p = url.searchParams.get('p');
+  if (url.host !== 'audio' || !p || !AUDIO_EXT.has(path.extname(p).toLowerCase()) || !fs.existsSync(p)) return new Response('Not found', { status: 404 });
+  let src;
+  try { src = previewSource(p); } catch (e) { return new Response(e.message, { status: 415 }); }
+  let start = 0;
+  let end = src.size - 1;
+  const m = /bytes=(\d*)-(\d*)/.exec(request.headers.get('Range') || '');
+  if (m) {
+    if (m[1]) start = +m[1];
+    if (m[2]) end = Math.min(+m[2], end);
+    if (!m[1] && m[2]) { start = Math.max(0, src.size - +m[2]); end = src.size - 1; }
+    if (start > end || start >= src.size) return new Response('', { status: 416, headers: { 'Content-Range': `bytes */${src.size}` } });
+  }
+  let pos = start;
+  const body = new ReadableStream({
+    pull(ctrl) {
+      if (pos > end) { ctrl.close(); return; }
+      const to = Math.min(end, pos + CHUNK - 1);
+      try { ctrl.enqueue(new Uint8Array(src.read(pos, to))); } catch (e) { ctrl.error(e); return; }
+      pos = to + 1;
+    },
+  });
+  const headers = { 'Content-Type': src.mime, 'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1) };
+  if (m) headers['Content-Range'] = `bytes ${start}-${end}/${src.size}`;
+  return new Response(body, { status: m ? 206 : 200, headers });
+}
+
 app.whenReady().then(() => {
+  protocol.handle('pochette', handleAudio);
   settings = loadSettings();
   i18n.setLang(settings.lang);
   buildMenu();

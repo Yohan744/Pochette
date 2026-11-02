@@ -1,7 +1,7 @@
 {
   "name": "pochette",
   "productName": "Pochette",
-  "version": "1.0.0",
+  "version": "1.5.0",
   "description": "Tag and cover editor for DJs — WAV, AIFF, MP3, FLAC, built around rekordbox.",
   "author": "Yohan Quinquis",
   "license": "MIT",
@@ -12,7 +12,7 @@
     "dist": "node scripts/build.js",
     "install-app": "npm run dist && node scripts/install.js",
     "release": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && electron-builder --mac dir --arm64 --x64 --publish never && node scripts/dmg.js",
-    "test": "node --test test/core.test.js"
+    "test": "node --test test/core.test.js test/player-clean.test.js"
   },
   "devDependencies": {
     "electron": "^38.2.0",
@@ -34,7 +34,11 @@
       "icon": "build/icon.png",
       "identity": null,
       "hardenedRuntime": false,
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "electronLanguages": [
+        "en",
+        "fr"
+      ]
     },
     "fileAssociations": [
       {

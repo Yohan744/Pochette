@@ -251,6 +251,20 @@
     'set.size': ['Max cover size', 'Taille max des covers'],
     'set.sizeDesc': ['Images are converted to baseline JPEG (CDJ-compatible). 1000 px = sharp and light.', 'Les images sont converties en JPEG baseline (compatible CDJ). 1000 px = net et léger.'],
 
+    // ------------------------------------------------------------ cleanup, preview
+    'tb.clean': ['Clean', 'Nettoyer'],
+    'tb.clean.tip': ['Remove website ads (blabla.com) and double spaces (⇧⌘L)', 'Retirer les pubs de sites (blabla.com) et les doubles espaces (⇧⌘L)'],
+    'ctx.clean': ['Clean up…', 'Nettoyer…'],
+    'menu.clean': ['Clean Up…', 'Nettoyer…'],
+    'player.tip': ['Play / pause the preview (Space)', 'Écouter / mettre en pause (Espace)'],
+    'toast.previewErr': [(n) => `Can’t play “${n}”`, (n) => `Impossible de lire « ${n} »`],
+    'cl.title': ['Clean up', 'Nettoyer'],
+    'cl.sub': [(n) => `Website ads (blabla.com) and double spaces will be removed from ${enN(n, 'track', 'tracks')}.`, (n) => `Les pubs de sites (blabla.com) et les doubles espaces seront retirés de ${frN(n, 'morceau', 'morceaux')}.`],
+    'cl.go': ['Clean', 'Nettoyer'],
+    'cl.none': ['Nothing to clean', 'Rien à nettoyer'],
+    'cl.done': [(n) => `${enN(n, 'track', 'tracks')} cleaned — ⌘S to save`, (n) => `${frN(n, 'morceau nettoyé', 'morceaux nettoyés')} — ⌘S pour enregistrer`],
+    'undo.clean': ['Clean up', 'Nettoyage'],
+
     // ------------------------------------------------------------ macOS menus
     'menu.about': ['About Pochette', 'À propos de Pochette'],
     'menu.settings': ['Settings…', 'Réglages…'],

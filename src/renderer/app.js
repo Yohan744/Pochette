@@ -9,7 +9,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const T = I18N.t; // translation (`t` often means a track in this file)
 const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-const ROW = 34;
+const ROW = 37; // row height (keep in sync with --row in style.css)
 const FIELDS = ['title', 'artist', 'album', 'albumArtist', 'genre', 'year', 'track', 'bpm', 'key', 'label', 'comment'];
 const L = (k) => T(`col.${k}`); // label of a column / field
 const SHORT = new Set(['key', 'track', 'albumArtist']); // short label in the header
@@ -28,7 +28,7 @@ const COLUMNS = [
   { key: 'bpm', w: 60, edit: true, num: true },
   { key: 'key', w: 58, edit: true },
   { key: 'track', w: 50, edit: true, num: true, hidden: true },
-  { key: 'comment', w: 220, edit: true, hidden: true },
+  { key: 'comment', w: 240, edit: true },
   { key: 'format', w: 72 },
 ];
 const COL = Object.fromEntries(COLUMNS.map((c) => [c.key, c]));
@@ -39,6 +39,14 @@ try {
 const saveCols = () => {
   try { localStorage.setItem('pochette.cols', JSON.stringify(Object.fromEntries(COLUMNS.map((c) => [c.key, { w: c.w, hidden: !!c.hidden }])))); } catch { /* storage unavailable */ }
 };
+// the comment column is shown by default since 1.5 (it was hidden in the columns saved by 1.0)
+try {
+  if (localStorage.getItem('pochette.colsVersion') !== '2') {
+    COL.comment.hidden = false;
+    localStorage.setItem('pochette.colsVersion', '2');
+    saveCols();
+  }
+} catch { /* storage unavailable */ }
 const visibleCols = () => COLUMNS.filter((c) => !c.hidden);
 
 const S = {
@@ -77,6 +85,7 @@ const mismatch = (t) => (t.tags.title || '').normalize('NFC').trim() !== t.name.
 const sanitizeName = (s) => s.replace(/[/:]/g, '-').replace(/^\.+/, '').trim();
 
 function setVal(t, k, v) {
+  v = Clean.collapseSpaces(v); // never two spaces in a row
   if (k === 'name') {
     const n = sanitizeName(v);
     if (n) t.name = n;
@@ -198,7 +207,7 @@ function renderHeader() {
 
 function rowHtml(t, i) {
   const sel = S.sel.has(t.id);
-  const cls = ['row', sel && 'sel', sel && S.cursor === t.id && 'cursor', t.error && 'err'].filter(Boolean).join(' ');
+  const cls = ['row', sel && 'sel', sel && S.cursor === t.id && 'cursor', t.error && 'err', isPlaying(t.path) && 'playing'].filter(Boolean).join(' ');
   let cells = '';
   for (const c of visibleCols()) {
     const k = c.key;
@@ -285,6 +294,13 @@ function refresh({ skipInspector = false } = {}) {
 // ================================================================== inspector
 
 const fmtSize = (b) => T('size', b);
+/** Last two folders of a path: “/Users/yohan/Music/DJ/tech” → “…/DJ/tech” (full path in the tooltip). */
+const shortDir = (d) => {
+  const parts = String(d || '').split('/').filter(Boolean);
+  if (parts.length <= 2) return d;
+  const two = `…/${parts.slice(-2).join('/')}`;
+  return two.length > 34 ? `…/${parts[parts.length - 1]}` : two; // long names: just the track's folder
+};
 const fmtDur = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '—');
 function fmtAudio(a) {
   if (!a) return '—';
@@ -325,12 +341,30 @@ function previewFor(t) {
   return S.previews.get('file:' + t.path) || null;
 }
 
+/** Large cover previews of files are kept for the last 60 tracks viewed only (memory). */
+function rememberPreview(key, url) {
+  S.previews.delete(key);
+  S.previews.set(key, url);
+  const files = [...S.previews.keys()].filter((k) => k.startsWith('file:'));
+  for (const k of files.slice(0, Math.max(0, files.length - 60))) S.previews.delete(k);
+}
+
+/** Tells the main process which pending covers are still needed (tracks + undo history); the rest is freed. */
+function releaseCovers() {
+  const ids = new Set();
+  const add = (a) => { if (a && a !== 'keep' && a !== 'remove') ids.add(a); };
+  S.tracks.forEach((t) => add(t.coverAction));
+  for (const step of [...S.undo, ...S.redo]) for (const [, snapshot] of step.items) add(snapshot.coverAction);
+  for (const k of [...S.previews.keys()]) if (!k.startsWith('file:') && !ids.has(k)) S.previews.delete(k);
+  api.keepCovers([...ids]).catch(() => {});
+}
+
 async function loadPreview(t) {
   const key = 'file:' + t.path;
   if (S.previews.has(key)) return;
   try {
     const url = await api.coverPreview({ path: t.path });
-    S.previews.set(key, url);
+    rememberPreview(key, url);
     const img = $('#cover-big');
     const ts = targets();
     if (img && url && ts.length && ts.every((x) => x.cover && x.cover.thumb === t.cover.thumb)) img.src = url;
@@ -382,7 +416,7 @@ function renderInspector() {
       <div><dt>${T('meta.audio')}</dt><dd>${fmtAudio(single.audio)}</dd></div>
       <div><dt>${T('meta.duration')}</dt><dd>${fmtDur(single.audio?.duration)}</dd></div>
       <div><dt>${T('meta.size')}</dt><dd>${fmtSize(single.size)}</dd></div>
-      <div><dt>${T('meta.folder')}</dt><dd class="path" data-act="reveal" title="${esc(single.path)}">${esc(single.dir)}</dd></div>
+      <div><dt>${T('meta.folder')}</dt><dd class="path" data-act="reveal" title="${esc(single.path)}">${esc(shortDir(single.dir))}</dd></div>
       ${single.error ? `<div><dt>${T('meta.error')}</dt><dd style="color:var(--danger)">${esc(single.error)}</dd></div>` : ''}`;
   } else {
     const counts = {};
@@ -394,6 +428,7 @@ function renderInspector() {
 
   el.innerHTML = `
     <div class="insp-head"><h2>${single ? esc(single.name + single.ext) : T('insp.tracks', ts.length)}</h2><span>${single ? '' : T('insp.batch')}</span></div>
+    ${single ? playerHtml(single) : ''}
     <div class="cover-well" id="cover-well" data-drop-label="${esc(T('drop.apply'))}">${well.html}</div>
     <div class="cover-meta">${meta}</div>
     <div class="cover-actions">
@@ -455,6 +490,9 @@ function rangeTo(id) {
   S.cursor = id;
 }
 function selChanged() {
+  // while a preview is playing, moving to another track plays that one (browse by ear)
+  const cur = S.byId.get(S.cursor);
+  if (cur && S.sel.size === 1 && player.path && !player.audio.paused && player.path !== cur.path) playTrack(cur);
   renderRows();
   renderInspector();
   renderStatus();
@@ -506,6 +544,7 @@ tinner.addEventListener('contextmenu', (e) => {
   const ts = targets();
   showMenu(e.clientX, e.clientY, [
     { label: T('ctx.titleFromName'), kbd: '⌘T', action: () => run('titleFromName') },
+    { label: T('ctx.clean'), kbd: '⇧⌘L', action: () => run('clean') },
     { label: T('ctx.nameFromTitle'), kbd: '⇧⌘T', action: () => run('nameFromTitle') },
     { label: T('ctx.copyColumn'), action: () => run('copyColumn') },
     'sep',
@@ -643,6 +682,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); moveCursor(e.key === 'ArrowDown' ? 1 : -1, e.shiftKey); return; }
   if (meta && e.key === 'Backspace') { e.preventDefault(); run('removeFromList'); return; }
   if (meta) return;
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur(); // don't also click it
+    togglePlay(S.byId.get(S.cursor) || targets()[0]);
+    return;
+  }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault();
     const next = nextCol(S.activeCol, e.key === 'ArrowRight' ? 1 : -1, false);
@@ -840,10 +885,17 @@ async function saveTracks(list) {
       if (r.ok) {
         S.previews.delete('file:' + tr.path);
         S.previews.delete('file:' + r.track.path);
+        if (player.path === tr.path && r.track.path !== tr.path) stopPlayer(); // file renamed
         fillTrack(tr, r.track);
       } else errors.push(`${tr.orig.name} : ${r.error}`);
     });
+    // the files now hold these values: undo steps on saved tracks would no longer match the files
+    const saved = new Set(list.filter((x, i) => res[i] && res[i].ok));
+    const untouched = (step) => step.items.every(([x]) => !saved.has(x));
+    S.undo = S.undo.filter(untouched);
+    S.redo = S.redo.filter(untouched);
     refresh();
+    releaseCovers();
     const ok = res.filter((r) => r.ok).length;
     if (errors.length) toast(T('toast.saveErrors', ok, errors.length, errors[0]), { error: true });
     else toast(T('toast.saved', ok), { success: true });
@@ -955,6 +1007,7 @@ async function convertSelection() {
       const tr = S.tracks.find((x) => x.path === r.from);
       if (!r.ok) { errors.push(`${tr ? tr.name : r.from} : ${r.error}`); continue; }
       ok++;
+      if (r.trashed && player.path === r.from) stopPlayer();
       const nt = makeTrack(r.track);
       const i = S.tracks.indexOf(tr);
       S.byId.delete(tr.id);
@@ -1025,6 +1078,7 @@ async function clearList() {
     if (c === 0 && !(await saveTracks(dirty))) { toast(T('clear.saveFailed'), { error: true }); return; }
   }
   const n = S.tracks.length;
+  stopPlayer();
   S.tracks = [];
   S.byId.clear();
   S.sel.clear();
@@ -1033,6 +1087,7 @@ async function clearList() {
   S.undo = [];
   S.redo = [];
   S.previews.clear();
+  releaseCovers();
   S.filter = { text: '', noCover: false, mismatch: false, dirty: false };
   $('#search').value = '';
   tbody.scrollTop = 0;
@@ -1060,7 +1115,7 @@ async function run(cmd, el) {
     case 'titleFromName': {
       let list = targets();
       if (!list.length) list = S.view;
-      const n = mutate(T('undo.titleFromName'), list, (x) => { x.tags.title = x.name; });
+      const n = mutate(T('undo.titleFromName'), list, (x) => setVal(x, 'title', x.name));
       return toast(n ? T('toast.titleDone', n) : T('toast.titleSame'), { undo: !!n });
     }
     case 'nameFromTitle': {
@@ -1105,13 +1160,16 @@ async function run(cmd, el) {
       if (!list.length) return;
       if (list.some(isDirty) && api.confirm({ message: T('rm.message'), detail: T('rm.detail'), buttons: [T('rm.btn'), T('btn.cancel')] }) !== 0) return;
       const ids = new Set(list.map((x) => x.id));
+      if (list.some((x) => x.path === player.path)) stopPlayer();
       S.tracks = S.tracks.filter((x) => !ids.has(x.id));
       ids.forEach((id) => S.byId.delete(id));
       S.sel.clear(); S.cursor = null; S.anchor = null;
       S.undo = S.undo.filter((s) => s.items.every(([x]) => S.byId.has(x.id)));
+      releaseCovers();
       return refresh();
     }
     case 'clearList': return clearList();
+    case 'clean': return cleanModal();
     case 'convert': return convertSelection();
     case 'finderIcons': {
       const list = ts();
@@ -1173,10 +1231,10 @@ function showMenu(x, y, items) {
 }
 function closeMenu() { $('#menu-root').innerHTML = ''; }
 
-function openModal(html, mount) {
+function openModal(html, mount, cls = '') {
   closeModal();
   const root = $('#modal-root');
-  root.innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
+  root.innerHTML = `<div class="modal-backdrop"><div class="modal ${cls}">${html}</div></div>`;
   const m = $('.modal', root);
   hydrateIcons(m);
   root.firstElementChild.addEventListener('mousedown', (e) => { if (e.target === root.firstElementChild) closeModal(); });

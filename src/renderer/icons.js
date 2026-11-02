@@ -20,6 +20,9 @@ const ICONS = {
   arrowLeft: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   listX: '<path d="M11 12H3M16 6H3M16 18H3M19 10l-4 4M15 10l4 4"/>',
+  broom: '<path d="m13 11 9-9M14.6 12.6c.8.8.9 2.1.2 3L10 22l-8-8 6.4-4.8c.9-.7 2.2-.6 3 .2ZM6.5 13.5 5 15M8.5 15.5 7 17M10.5 17.5 9 19"/>',
+  play: '<path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" fill="currentColor"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>',
   reveal: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
 };
 

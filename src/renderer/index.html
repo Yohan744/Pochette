@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' pochette:; style-src 'self' 'unsafe-inline'; script-src 'self'">
   <title>Pochette</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -23,6 +23,7 @@
     <div class="tb-group">
       <button class="tb-btn" data-cmd="titleFromName" data-i18n-tip="tb.titleFromName.tip"><svg data-icon="type"></svg><span data-i18n="tb.titleFromName"></span></button>
       <button class="tb-btn" data-cmd="copyColumn" data-i18n-tip="tb.copyColumn.tip"><svg data-icon="copy"></svg><span data-i18n="tb.copyColumn"></span></button>
+      <button class="tb-btn" data-cmd="clean" data-i18n-tip="tb.clean.tip"><svg data-icon="broom"></svg><span class="opt" data-i18n="tb.clean"></span></button>
     </div>
 
     <div class="tb-group">
@@ -92,7 +93,9 @@
   <div class="menu-root" id="menu-root"></div>
 
   <script src="../i18n.js"></script>
+  <script src="../clean.js"></script>
   <script src="icons.js"></script>
+  <script src="player-clean.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
